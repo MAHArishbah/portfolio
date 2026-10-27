@@ -17,6 +17,9 @@ export type GraphNode = {
   /** Percent of canvas width / height. */
   x: number;
   y: number;
+  /** Position on the tall, narrow map used on phones. */
+  mx: number;
+  my: number;
 };
 
 export const glyph: Record<NodeKind, string> = {
@@ -61,7 +64,7 @@ const clusterByName = new Map(clusters.map((c) => [c.name, c]));
    Nodes
    ------------------------------------------------------------------------- */
 
-type Raw = Omit<GraphNode, "x" | "y" | "color" | "clusterIndex">;
+type Raw = Omit<GraphNode, "x" | "y" | "mx" | "my" | "color" | "clusterIndex">;
 
 const raw: Raw[] = [
   ...profile.experience
@@ -134,7 +137,7 @@ const chipHalfW = (label: string) => (label.length * CHIP_CHAR + CHIP_PAD) / 2;
  * pushed clear along whichever axis costs less — which is almost always
  * vertical, since both pills are wide and short.
  */
-export const nodes: GraphNode[] = (() => {
+const ringNodes = (() => {
   const byCluster = new Map<string, Raw[]>();
   for (const n of raw) {
     const list = byCluster.get(n.cluster) ?? [];
@@ -142,7 +145,7 @@ export const nodes: GraphNode[] = (() => {
     byCluster.set(n.cluster, list);
   }
 
-  const out: GraphNode[] = [];
+  const out: Omit<GraphNode, "mx" | "my">[] = [];
 
   for (const [name, members] of byCluster) {
     const centre = clusterByName.get(name);
@@ -208,6 +211,75 @@ export const nodes: GraphNode[] = (() => {
   return out;
 })();
 
+/* -------------------------------------------------------------------------
+   Phone layout
+   At phone width the ring layout piles labels on top of each other. Here the
+   regions zig-zag down a tall canvas and each region's chips are packed into
+   rows directly above and below its label, so nothing can overlap.
+   ------------------------------------------------------------------------- */
+
+/* Sized for the narrowest canvas we expect (~270px, an iPhone SE): chips are
+   10px mono, 6px a character, plus glyph, space, padding and border. */
+const M_CHAR = 2.25;
+const M_PAD = 11.2;
+const M_GAP = 1.6;
+const M_ROW = 4.1; // row pitch, ~31px on the 760px-tall phone canvas
+/** Rows keep clear of the edges so the idle orbit can't push a chip off. */
+const M_EDGE = 4;
+
+const mChipW = (label: string) => label.length * M_CHAR + M_PAD;
+
+export const mobileClusters = clusters.map((c, i) => ({
+  ...c,
+  x: i % 2 === 0 ? 36 : 64,
+  y: 10 + i * 19,
+}));
+
+const mobileClusterByName = new Map(mobileClusters.map((c) => [c.name, c]));
+
+function placeMobile(list: typeof ringNodes) {
+  const pos = new Map<string, { x: number; y: number }>();
+
+  for (const c of mobileClusters) {
+    // Greedy row packing, widest first so the short labels fill the gaps.
+    const members = list
+      .filter((n) => n.cluster === c.name)
+      .sort((a, b) => mChipW(b.label) - mChipW(a.label));
+    const rows: (typeof members)[] = [];
+    const rowW = (r: typeof members) =>
+      r.reduce((w, m) => w + mChipW(m.label), 0) + M_GAP * (r.length - 1);
+
+    for (const n of members) {
+      const row = rows.find(
+        (r) => rowW(r) + M_GAP + mChipW(n.label) <= 100 - 2 * M_EDGE,
+      );
+      if (row) row.push(n);
+      else rows.push([n]);
+    }
+
+    // Rows alternate above and below the label: -1, +1, -2, +2, …
+    rows.forEach((row, ri) => {
+      const slot = (Math.floor(ri / 2) + 1) * (ri % 2 === 0 ? -1 : 1);
+      let cursor = clamp(c.x - rowW(row) / 2, M_EDGE, 100 - M_EDGE - rowW(row));
+      for (const n of row) {
+        const w = mChipW(n.label);
+        pos.set(n.id, { x: cursor + w / 2, y: c.y + slot * M_ROW });
+        cursor += w + M_GAP;
+      }
+    });
+  }
+
+  return pos;
+}
+
+export const nodes: GraphNode[] = (() => {
+  const mobile = placeMobile(ringNodes);
+  return ringNodes.map((n) => {
+    const m = mobile.get(n.id) ?? { x: n.x, y: n.y };
+    return { ...n, mx: m.x, my: m.y };
+  });
+})();
+
 export const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
 /* -------------------------------------------------------------------------
@@ -232,11 +304,16 @@ export function idleDrift(t: number, i: number) {
 
 const PUSH = 17;
 
-export function clusterOffset(active: string | null, name: string) {
+export function clusterOffset(
+  active: string | null,
+  name: string,
+  narrow = false,
+) {
   if (!active || active === name) return { dx: 0, dy: 0 };
 
-  const from = clusterByName.get(active);
-  const to = clusterByName.get(name);
+  const centres = narrow ? mobileClusterByName : clusterByName;
+  const from = centres.get(active);
+  const to = centres.get(name);
   if (!from || !to) return { dx: 0, dy: 0 };
 
   const vx = to.x - from.x;

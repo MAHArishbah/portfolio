@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { clusterOffset, idleDrift } from "@/content/graph";
+import { clusterOffset, idleDrift, mobileClusters } from "@/content/graph";
 import { clusters } from "@/content/profile";
 
 type Particle = {
@@ -64,8 +64,11 @@ function resolve(token: string): [number, number, number] {
  */
 export default function ParticleField({
   activeCluster,
+  narrow = false,
 }: {
   activeCluster: string | null;
+  /** Use the tall phone layout — tighter vertically, as the canvas is. */
+  narrow?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeRef = useRef(activeCluster);
@@ -85,11 +88,14 @@ export default function ParticleField({
     const rand = mulberry(20260127);
     const particles: Particle[] = [];
 
-    clusters.forEach((c, ci) => {
+    const centres = narrow ? mobileClusters : clusters;
+    const spreadY = narrow ? 0.07 : 0.18;
+
+    centres.forEach((c, ci) => {
       for (let i = 0; i < PER_CLUSTER; i += 1) {
         particles.push({
           x: c.x / 100 + gauss(rand) * 0.14,
-          y: c.y / 100 + gauss(rand) * 0.18,
+          y: c.y / 100 + gauss(rand) * spreadY,
           r: 0.4 + rand() * 1.5,
           alpha: 0.12 + rand() * 0.5,
           phase: rand() * Math.PI * 2,
@@ -172,7 +178,7 @@ export default function ParticleField({
         gain[i] += (target - gain[i]) * 0.08;
 
         // Selection push eases in; the idle orbit rides on top of it.
-        const { dx, dy } = clusterOffset(active, c.name);
+        const { dx, dy } = clusterOffset(active, c.name, narrow);
         drift[i].x += (dx / 100 - drift[i].x) * EASE;
         drift[i].y += (dy / 100 - drift[i].y) * EASE;
 
@@ -212,7 +218,7 @@ export default function ParticleField({
       themeObserver.disconnect();
       scheme.removeEventListener("change", readPalette);
     };
-  }, []);
+  }, [narrow]);
 
   return (
     <canvas
