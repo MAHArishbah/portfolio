@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import ParticleField from "../ParticleField";
 import Reveal from "../Reveal";
 import SectionHeader from "../SectionHeader";
@@ -8,6 +14,7 @@ import {
   clusterOffset,
   glyph,
   idleDrift,
+  mobileClusters,
   nodeById,
   nodes,
 } from "@/content/graph";
@@ -25,12 +32,27 @@ const kindLabel = {
 const EASE_POS =
   "left 3.5s cubic-bezier(0.16,1,0.3,1), top 3.5s cubic-bezier(0.16,1,0.3,1)";
 
+/** Below Tailwind's `sm` — phones get the tall layout from `graph.ts`. */
+const NARROW = "(max-width: 639.98px)";
+
+function useNarrow() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(NARROW);
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
+}
+
 export default function Embed() {
   const [filter, setFilter] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
-  const detailRef = useRef<HTMLDivElement>(null);
+  const narrow = useNarrow();
 
   /**
    * Idle orbit for the chips and region labels. Written straight to the DOM
@@ -145,19 +167,19 @@ export default function Embed() {
         >
           <div
             ref={mapRef}
-            className="relative h-[min(68vh,520px)] w-full sm:h-[min(74vh,680px)]"
+            className="relative h-[760px] w-full sm:h-[min(74vh,680px)]"
             onMouseLeave={() => setHovered(null)}
           >
-            <ParticleField activeCluster={filter} />
+            <ParticleField activeCluster={filter} narrow={narrow} />
 
             {/* cluster labels, sitting behind the chips */}
-            {clusters.map((c, i) => {
-              const { dx, dy } = clusterOffset(filter, c.name);
+            {(narrow ? mobileClusters : clusters).map((c, i) => {
+              const { dx, dy } = clusterOffset(filter, c.name, narrow);
               return (
                 <span
                   key={c.name}
                   data-ci={i}
-                  className="pointer-events-none absolute z-10 sm:z-20"
+                  className="pointer-events-none absolute z-20"
                   aria-hidden="true"
                   style={{
                     left: `${c.x + dx}%`,
@@ -191,16 +213,16 @@ export default function Embed() {
               const off = dimmed(n.cluster);
               const isFocus = focus === n.id;
               const isSelected = selected === n.id;
-              const { dx, dy } = clusterOffset(filter, n.cluster);
+              const { dx, dy } = clusterOffset(filter, n.cluster, narrow);
 
               return (
                 <span
                   key={n.id}
                   data-ci={n.clusterIndex}
-                  className="absolute z-20 sm:z-10"
+                  className="absolute z-10"
                   style={{
-                    left: `${n.x + dx}%`,
-                    top: `${n.y + dy}%`,
+                    left: `${(narrow ? n.mx : n.x) + dx}%`,
+                    top: `${(narrow ? n.my : n.y) + dy}%`,
                     transition: EASE_POS,
                   }}
                 >
@@ -211,7 +233,7 @@ export default function Embed() {
                     onClick={() => setSelected(isSelected ? null : n.id)}
                     aria-pressed={isSelected}
                     tabIndex={off ? -1 : 0}
-                    className="block whitespace-nowrap rounded-full border px-2 py-1.5 font-mono text-[11px] backdrop-blur-sm sm:px-2.5 sm:py-1"
+                    className="block whitespace-nowrap rounded-full border px-2 py-1 font-mono text-[10px] backdrop-blur-sm sm:px-2.5 sm:text-[11px]"
                     style={{
                       transform: `translate(-50%, -50%) scale(${isFocus ? 1.06 : 1})`,
                       transition:
@@ -230,13 +252,8 @@ export default function Embed() {
                   >
                     <span style={{ color: n.color }} aria-hidden="true">
                       {glyph[n.kind]}
-                    </span>
-                    {/* Glyph only on phones — full labels can't fit a narrow
-                        map without piling up; the detail panel names it. */}
-                    <span className="sr-only sm:not-sr-only">
-                      {" "}
-                      {n.label}
-                    </span>
+                    </span>{" "}
+                    {n.label}
                     <span className="sr-only">
                       {" "}
                       — {kindLabel[n.kind]}, {n.cluster}
@@ -256,14 +273,14 @@ export default function Embed() {
               ))}
             </div>
 
-            <div className="pointer-events-none absolute bottom-4 right-5 hidden font-mono sm:block text-[10px] text-faint">
+            <div className="pointer-events-none absolute bottom-4 right-5 hidden font-mono text-[10px] sm:block">
               {nodes.length} entities
             </div>
           </div>
         </Reveal>
 
         {/* ------------------- detail ------------------- */}
-        <div ref={detailRef} className="mt-5 scroll-mt-24">
+        <div className="mt-5">
           {detail ? (
             <article className="rounded-xl border border-line bg-surface/60 p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -334,58 +351,6 @@ export default function Embed() {
           )}
         </div>
 
-        {/* ------------------- small-screen list ------------------- */}
-        <div className="mt-8 space-y-6 sm:hidden">
-          {clusters.map((c) => {
-            const members = nodes.filter((n) => n.cluster === c.name);
-            if (members.length === 0) return null;
-
-            return (
-              <Reveal key={c.name}>
-                <h3
-                  className="mb-3 flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.2em]"
-                  style={{ color: c.color }}
-                >
-                  <span className="size-1.5 rounded-full" style={{ background: c.color }} />
-                  {c.name}
-                </h3>
-
-                <ul className="space-y-2">
-                  {members.map((n) => (
-                    <li key={n.id}>
-                      <button
-                        onClick={() => {
-                          const opening = selected !== n.id;
-                          setSelected(opening ? n.id : null);
-                          // The panel sits above this list, so bring it into
-                          // view or the tap looks like it did nothing.
-                          if (opening) {
-                            requestAnimationFrame(() =>
-                              detailRef.current?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "start",
-                              }),
-                            );
-                          }
-                        }}
-                        aria-pressed={selected === n.id}
-                        className="flex w-full items-center gap-2 rounded-lg border border-line bg-surface/50 px-3 py-2.5 text-left"
-                      >
-                        <span style={{ color: n.color }} aria-hidden="true">
-                          {glyph[n.kind]}
-                        </span>
-                        <span className="flex-1 text-sm text-fg">{n.label}</span>
-                        <span className="font-mono text-[10px] text-faint">
-                          {kindLabel[n.kind]}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-            );
-          })}
-        </div>
       </div>
     </section>
   );

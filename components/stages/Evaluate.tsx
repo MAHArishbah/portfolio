@@ -4,6 +4,38 @@ import { profile, stages } from "@/content/profile";
 
 const stage = stages[3];
 
+function Meter({
+  color,
+  fill,
+  scale,
+}: {
+  color: string;
+  fill: number;
+  scale: string;
+}) {
+  return (
+    <>
+      <span
+        className="block h-[6px] w-full overflow-hidden rounded-full"
+        style={{
+          background: `color-mix(in oklab, ${color} 16%, transparent)`,
+        }}
+      >
+        <span
+          className="block h-full rounded-r-[4px]"
+          style={{
+            width: `${Math.round(fill * 100)}%`,
+            background: color,
+          }}
+        />
+      </span>
+      <span className="mt-2 block font-mono text-[10px] tracking-wide text-faint">
+        {scale}
+      </span>
+    </>
+  );
+}
+
 function Metrics() {
   if (profile.metrics.length === 0) return null;
 
@@ -31,28 +63,17 @@ function Metrics() {
                 <span className="mt-1 block text-[12.5px] font-normal leading-relaxed text-faint">
                   {m.note}
                 </span>
+                {/* Phones have no room for the scale column, so the meter
+                    sits under the metric instead. */}
+                <span className="mt-3 block sm:hidden">
+                  <Meter color={m.color} fill={m.fill} scale={m.scale} />
+                </span>
               </th>
 
               {/* The meter. Track is a tone-on-tone step of the row's own hue,
                   so the unfilled part still reads as part of the mark. */}
               <td className="hidden px-5 py-5 align-middle sm:table-cell">
-                <span
-                  className="block h-[6px] w-full overflow-hidden rounded-full"
-                  style={{
-                    background: `color-mix(in oklab, ${m.color} 16%, transparent)`,
-                  }}
-                >
-                  <span
-                    className="block h-full rounded-r-[4px]"
-                    style={{
-                      width: `${Math.round(m.fill * 100)}%`,
-                      background: m.color,
-                    }}
-                  />
-                </span>
-                <span className="mt-2 block font-mono text-[10px] tracking-wide text-faint">
-                  {m.scale}
-                </span>
+                <Meter color={m.color} fill={m.fill} scale={m.scale} />
               </td>
 
               <td className="w-[7.5rem] whitespace-nowrap px-5 py-5 align-middle text-right">
