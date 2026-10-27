@@ -1,0 +1,28 @@
+# Next.js is configured with `output: "export"` (see next.config.ts), so the
+# build produces a plain static directory and Netlify only has to serve it —
+# no serverless functions, no Next.js runtime.
+
+[build]
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  # Next 16 needs Node >= 20.9. Pinning keeps local and CI on the same major.
+  NODE_VERSION = "22"
+
+# Everything under /_next/static is content-hashed, so it can never go stale.
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/resume.pdf"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+.env*
+!.env.example
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local tool permissions, not project config
+.claude/settings.local.json
+
+# Netlify CLI, if you ever install it
+.netlify/
