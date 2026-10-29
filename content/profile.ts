@@ -246,6 +246,23 @@ export const profile = {
       repo: `${GH}/nanoGPT_Project`,
     },
     {
+      name: "ML Researcher — Multi-Agent Research Agent",
+      short: "ML researcher",
+      category: "Document AI & LLMs",
+      blurb:
+        "A LangGraph research agent over arXiv, a local notes index, GitHub and YouTube: a router sends the turn to a planner, four source researchers run in parallel, then a reviewer either sends follow-ups back to any source or requests a Python check in Gemini's hosted sandbox before a synthesizer writes the brief. Retrieval is measured on a 100-question golden set across 42,527 chunks — hybrid vector + BM25 with a Cohere rerank from 15 down to 5 reaches 0.82 hit@5 against 0.67 for hybrid alone, a 15-point gain against a ±9-point noise band at that sample size, at 0.58 MRR and 0.60 nDCG@5. Multi-hop is the honest weak spot: both hops land in the top 5 on 0.44 of those questions. Every loop is bounded — three tool calls per researcher, two reviewer rounds — with hashed call dedup so a repeated query is never re-run.",
+      tags: [
+        "LangGraph",
+        "LangChain",
+        "Gemini / Vertex AI",
+        "Chroma",
+        "BM25 hybrid",
+        "Cohere rerank",
+        "Streamlit",
+      ],
+      repo: `${GH}/ml-researcher`,
+    },
+    {
       name: "Calibrated Clinical Risk Scoring",
       short: "Clinical risk",
       category: "Production MLOps",
@@ -307,15 +324,6 @@ export const profile = {
       blurb:
         "A retrieval assistant over automation execution reports, taken from POC to production at DSV — a LangGraph state machine over FAISS retrieval and Azure OpenAI, served via FastAPI on Azure containers to ~2,000 users across 700+ automation processes.",
       tags: ["LangGraph", "FAISS", "Azure OpenAI", "FastAPI", "RAG"],
-    },
-    {
-      name: "LangChain Research Tool",
-      short: "Research agent",
-      category: "Document AI & LLMs",
-      blurb:
-        "A research assistant built on LangChain — retrieval, tool use, and source-grounded answers.",
-      tags: ["LangChain", "RAG", "Embeddings"],
-      repo: `${GH}/LangChain-ResearchTool`,
     },
     {
       name: "Distributed Training Practice",
